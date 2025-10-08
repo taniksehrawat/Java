@@ -1,0 +1,44 @@
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+class Student {
+    private String name;
+    private double marks;
+
+    public Student(String name, double marks) {
+        this.name = name;
+        this.marks = marks;
+    }
+
+    public String getName() { return name; }
+    public double getMarks() { return marks; }
+
+    @Override
+    public String toString() {
+        return name + " (" + marks + ")";
+    }
+}
+
+public class StudentFilterSort {
+    public static void main(String[] args) {
+        // Step 1: Create a list of students
+        List<Student> students = new ArrayList<>();
+        students.add(new Student("Tanik Sehrawat", 82));
+        students.add(new Student("Amit Sharma", 74));
+        students.add(new Student("Riya Kapoor", 90));
+        students.add(new Student("Vikram Singh", 68));
+        students.add(new Student("Sonia Mehta", 78));
+
+        // Step 2: Filter students with marks > 75, sort by marks ascending, and map to names
+        List<String> filteredNames = students.stream()
+                .filter(s -> s.getMarks() > 75)          // filter marks > 75
+                .sorted((s1, s2) -> Double.compare(s1.getMarks(), s2.getMarks())) // sort by marks
+                .map(Student::getName)                   // map to student names
+                .collect(Collectors.toList());           // collect to a list
+
+        // Step 3: Display the names
+        System.out.println("Students scoring above 75%, sorted by marks:");
+        filteredNames.forEach(System.out::println);
+    }
+}
