@@ -1,0 +1,356 @@
+/* =============================================================
+   File: Student.java  (Entity)
+   ============================================================= */
+package com.studentmgmt;
+
+import javax.persistence.*;
+
+@Entity
+@Table(name = "students")
+public class Student {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private int id;
+
+    private String name;
+    private String course;
+    private double feesPaid;
+
+    public Student() {}
+
+    public Student(String name, String course, double feesPaid) {
+        this.name = name;
+        this.course = course;
+        this.feesPaid = feesPaid;
+    }
+
+    public int getId() { return id; }
+    public String getName() { return name; }
+    public String getCourse() { return course; }
+    public double getFeesPaid() { return feesPaid; }
+
+    public void setName(String name) { this.name = name; }
+    public void setCourse(String course) { this.course = course; }
+    public void setFeesPaid(double feesPaid) { this.feesPaid = feesPaid; }
+
+    @Override
+    public String toString() {
+        return "Student [ID=" + id + ", Name=" + name + ", Course=" + course + ", FeesPaid=" + feesPaid + "]";
+    }
+}
+
+
+/* =============================================================
+   File: Course.java  (Entity)
+   ============================================================= */
+package com.studentmgmt;
+
+import javax.persistence.*;
+
+@Entity
+@Table(name = "courses")
+public class Course {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private int id;
+    private String courseName;
+    private double feeAmount;
+
+    public Course() {}
+
+    public Course(String courseName, double feeAmount) {
+        this.courseName = courseName;
+        this.feeAmount = feeAmount;
+    }
+
+    public int getId() { return id; }
+    public String getCourseName() { return courseName; }
+    public double getFeeAmount() { return feeAmount; }
+
+    public void setCourseName(String courseName) { this.courseName = courseName; }
+    public void setFeeAmount(double feeAmount) { this.feeAmount = feeAmount; }
+
+    @Override
+    public String toString() {
+        return "Course [ID=" + id + ", Name=" + courseName + ", Fee=" + feeAmount + "]";
+    }
+}
+
+
+/* =============================================================
+   File: StudentDAO.java  (Data Access Layer)
+   ============================================================= */
+package com.studentmgmt;
+
+import java.util.List;
+import org.hibernate.Session;
+import org.hibernate.SessionFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public class StudentDAO {
+
+    @Autowired
+    private SessionFactory sessionFactory;
+
+    private Session getSession() {
+        return sessionFactory.getCurrentSession();
+    }
+
+    // CRUD Operations
+    public void saveStudent(Student s) {
+        getSession().save(s);
+    }
+
+    public Student getStudent(int id) {
+        return getSession().get(Student.class, id);
+    }
+
+    public List<Student> getAllStudents() {
+        return getSession().createQuery("from Student", Student.class).list();
+    }
+
+    public void updateStudent(Student s) {
+        getSession().update(s);
+    }
+
+    public void deleteStudent(int id) {
+        Student s = getStudent(id);
+        if (s != null) getSession().delete(s);
+    }
+}
+
+
+/* =============================================================
+   File: StudentService.java  (Service Layer with Transactions)
+   ============================================================= */
+package com.studentmgmt;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.util.List;
+
+@Service
+public class StudentService {
+
+    @Autowired
+    private StudentDAO dao;
+
+    @Transactional
+    public void addStudent(Student s) {
+        dao.saveStudent(s);
+        System.out.println("✅ Student added successfully!");
+    }
+
+    @Transactional(readOnly = true)
+    public List<Student> listStudents() {
+        return dao.getAllStudents();
+    }
+
+    @Transactional
+    public void updateStudent(int id, String newCourse) {
+        Student s = dao.getStudent(id);
+        if (s != null) {
+            s.setCourse(newCourse);
+            dao.updateStudent(s);
+            System.out.println("✅ Student course updated!");
+        } else {
+            System.out.println("❌ Student not found!");
+        }
+    }
+
+    @Transactional
+    public void deleteStudent(int id) {
+        dao.deleteStudent(id);
+        System.out.println("🗑️ Student deleted successfully!");
+    }
+
+    // Fee payment transaction
+    @Transactional
+    public void payFees(int id, double amount) {
+        Student s = dao.getStudent(id);
+        if (s == null) throw new RuntimeException("❌ Student not found!");
+        s.setFeesPaid(s.getFeesPaid() + amount);
+        dao.updateStudent(s);
+        System.out.println("💰 Fees paid successfully: " + amount);
+    }
+
+    // Refund (demonstrates rollback if refund > feesPaid)
+    @Transactional
+    public void refundFees(int id, double amount) {
+        Student s = dao.getStudent(id);
+        if (s == null) throw new RuntimeException("❌ Student not found!");
+        if (s.getFeesPaid() < amount) throw new RuntimeException("⚠️ Refund exceeds paid fees!");
+        s.setFeesPaid(s.getFeesPaid() - amount);
+        dao.updateStudent(s);
+        System.out.println("🔁 Refund successful: " + amount);
+    }
+}
+
+
+/* =============================================================
+   File: AppConfig.java  (Spring Configuration)
+   ============================================================= */
+package com.studentmgmt;
+
+import org.springframework.context.annotation.*;
+import org.springframework.orm.hibernate5.HibernateTransactionManager;
+import org.springframework.orm.hibernate5.LocalSessionFactoryBean;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+
+import javax.sql.DataSource;
+import java.util.Properties;
+
+@Configuration
+@ComponentScan(basePackages = "com.studentmgmt")
+@EnableTransactionManagement
+public class AppConfig {
+
+    @Bean
+    public DataSource dataSource() {
+        DriverManagerDataSource ds = new DriverManagerDataSource();
+        ds.setDriverClassName("com.mysql.cj.jdbc.Driver");
+        ds.setUrl("jdbc:mysql://localhost:3306/student_mgmt");
+        ds.setUsername("root");
+        ds.setPassword("your_password");
+        return ds;
+    }
+
+    @Bean
+    public LocalSessionFactoryBean sessionFactory() {
+        LocalSessionFactoryBean factory = new LocalSessionFactoryBean();
+        factory.setDataSource(dataSource());
+        factory.setPackagesToScan("com.studentmgmt");
+
+        Properties props = new Properties();
+        props.put("hibernate.dialect", "org.hibernate.dialect.MySQL8Dialect");
+        props.put("hibernate.hbm2ddl.auto", "update");
+        props.put("hibernate.show_sql", "true");
+
+        factory.setHibernateProperties(props);
+        return factory;
+    }
+
+    @Bean
+    public HibernateTransactionManager transactionManager() {
+        HibernateTransactionManager tx = new HibernateTransactionManager();
+        tx.setSessionFactory(sessionFactory().getObject());
+        return tx;
+    }
+}
+
+
+/* =============================================================
+   File: MainApp.java  (Runner)
+   ============================================================= */
+package com.studentmgmt;
+
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import java.util.List;
+import java.util.Scanner;
+
+public class MainApp {
+    public static void main(String[] args) {
+        AnnotationConfigApplicationContext ctx =
+                new AnnotationConfigApplicationContext(AppConfig.class);
+
+        StudentService service = ctx.getBean(StudentService.class);
+        Scanner sc = new Scanner(System.in);
+
+        while (true) {
+            System.out.println("\n===== Online Student Management System =====");
+            System.out.println("1. Add Student");
+            System.out.println("2. List Students");
+            System.out.println("3. Update Course");
+            System.out.println("4. Delete Student");
+            System.out.println("5. Pay Fees");
+            System.out.println("6. Refund Fees");
+            System.out.println("0. Exit");
+            System.out.print("Choose option: ");
+            int ch = sc.nextInt();
+
+            try {
+                switch (ch) {
+                    case 1:
+                        System.out.print("Enter Name: ");
+                        String name = sc.next();
+                        System.out.print("Enter Course: ");
+                        String course = sc.next();
+                        System.out.print("Enter Initial Fees Paid: ");
+                        double fees = sc.nextDouble();
+                        service.addStudent(new Student(name, course, fees));
+                        break;
+
+                    case 2:
+                        List<Student> students = service.listStudents();
+                        students.forEach(System.out::println);
+                        break;
+
+                    case 3:
+                        System.out.print("Enter Student ID: ");
+                        int idU = sc.nextInt();
+                        System.out.print("Enter New Course: ");
+                        String newC = sc.next();
+                        service.updateStudent(idU, newC);
+                        break;
+
+                    case 4:
+                        System.out.print("Enter Student ID: ");
+                        int idD = sc.nextInt();
+                        service.deleteStudent(idD);
+                        break;
+
+                    case 5:
+                        System.out.print("Enter Student ID: ");
+                        int idP = sc.nextInt();
+                        System.out.print("Enter Amount: ");
+                        double amtP = sc.nextDouble();
+                        service.payFees(idP, amtP);
+                        break;
+
+                    case 6:
+                        System.out.print("Enter Student ID: ");
+                        int idR = sc.nextInt();
+                        System.out.print("Enter Refund Amount: ");
+                        double amtR = sc.nextDouble();
+                        service.refundFees(idR, amtR);
+                        break;
+
+                    case 0:
+                        System.out.println("Exiting...");
+                        sc.close();
+                        ctx.close();
+                        return;
+                }
+            } catch (Exception e) {
+                System.out.println("❌ Error: " + e.getMessage());
+            }
+        }
+    }
+}
+
+
+/* =============================================================
+   MySQL Setup Script
+   ============================================================= */
+-- Run these in MySQL before running the app
+CREATE DATABASE student_mgmt;
+USE student_mgmt;
+
+CREATE TABLE students (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50),
+    course VARCHAR(50),
+    feesPaid DOUBLE
+);
+
+CREATE TABLE courses (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    courseName VARCHAR(50),
+    feeAmount DOUBLE
+);
