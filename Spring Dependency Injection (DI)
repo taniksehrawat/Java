@@ -1,0 +1,77 @@
+// File: SpringDIExample.java
+// Demonstrates Dependency Injection using Java-based configuration (no XML)
+
+import org.springframework.context.annotation.*;
+
+// ---------------------------
+// Dependency Class: Course
+// ---------------------------
+class Course {
+    private String courseName;
+
+    public Course(String courseName) {
+        this.courseName = courseName;
+    }
+
+    public String getCourseName() {
+        return courseName;
+    }
+
+    public void displayCourse() {
+        System.out.println("Enrolled in course: " + courseName);
+    }
+}
+
+// ---------------------------
+// Dependent Class: Student
+// ---------------------------
+class Student {
+    private Course course;  // dependency
+
+    // Constructor Injection
+    public Student(Course course) {
+        this.course = course;
+    }
+
+    public void showDetails() {
+        System.out.println("Student object created successfully!");
+        course.displayCourse();
+    }
+}
+
+// ---------------------------
+// Configuration Class
+// ---------------------------
+@Configuration
+class AppConfig {
+
+    @Bean
+    public Course course() {
+        return new Course("Spring Framework"); // create Course bean
+    }
+
+    @Bean
+    public Student student() {
+        return new Student(course()); // inject Course bean into Student
+    }
+}
+
+// ---------------------------
+// Main Class
+// ---------------------------
+public class SpringDIExample {
+    public static void main(String[] args) {
+        // Initialize Spring Context
+        AnnotationConfigApplicationContext context =
+                new AnnotationConfigApplicationContext(AppConfig.class);
+
+        // Retrieve Student bean
+        Student student = context.getBean(Student.class);
+
+        // Call method to verify DI
+        student.showDetails();
+
+        // Close context
+        context.close();
+    }
+}
