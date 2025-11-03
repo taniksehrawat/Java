@@ -1,0 +1,52 @@
+import java.io.*;
+import javax.servlet.*;
+import javax.servlet.http.*;
+
+public class LoginServlet extends HttpServlet {
+
+    @Override
+    protected void doGet(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+
+        response.setContentType("text/html");
+        PrintWriter out = response.getWriter();
+
+        // Display HTML login form
+        out.println("<html><body style='font-family: Arial; text-align:center;'>");
+        out.println("<h2>Login Form</h2>");
+        out.println("<form method='post' action=''>");
+        out.println("Username: <input type='text' name='username' required><br><br>");
+        out.println("Password: <input type='password' name='password' required><br><br>");
+        out.println("<input type='submit' value='Login'>");
+        out.println("</form>");
+        out.println("</body></html>");
+    }
+
+    @Override
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+
+        response.setContentType("text/html");
+        PrintWriter out = response.getWriter();
+
+        // Get input from form
+        String username = request.getParameter("username");
+        String password = request.getParameter("password");
+
+        // Hardcoded credentials
+        String validUser = "admin";
+        String validPass = "12345";
+
+        out.println("<html><body style='font-family: Arial; text-align:center;'>");
+
+        if (username.equals(validUser) && password.equals(validPass)) {
+            out.println("<h2 style='color:green;'>Welcome, " + username + "!</h2>");
+            out.println("<p>Login successful. Have a great day!</p>");
+        } else {
+            out.println("<h2 style='color:red;'>Invalid username or password!</h2>");
+            out.println("<a href='LoginServlet'>Try Again</a>");
+        }
+
+        out.println("</body></html>");
+    }
+}
