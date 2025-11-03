@@ -1,0 +1,258 @@
+/* ===========================================================
+   File 1: Account.java  (Entity Class)
+   =========================================================== */
+import javax.persistence.*;
+
+@Entity
+@Table(name = "account")
+public class Account {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private int id;
+
+    @Column(name = "account_holder")
+    private String accountHolder;
+
+    @Column(name = "balance")
+    private double balance;
+
+    public Account() {}
+
+    public Account(String accountHolder, double balance) {
+        this.accountHolder = accountHolder;
+        this.balance = balance;
+    }
+
+    // Getters and setters
+    public int getId() { return id; }
+    public String getAccountHolder() { return accountHolder; }
+    public double getBalance() { return balance; }
+
+    public void setAccountHolder(String accountHolder) { this.accountHolder = accountHolder; }
+    public void setBalance(double balance) { this.balance = balance; }
+
+    @Override
+    public String toString() {
+        return "Account [id=" + id + ", holder=" + accountHolder + ", balance=" + balance + "]";
+    }
+}
+
+
+/* ===========================================================
+   File 2: TransactionRecord.java  (Entity Class)
+   =========================================================== */
+import javax.persistence.*;
+import java.util.Date;
+
+@Entity
+@Table(name = "transaction_record")
+public class TransactionRecord {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private int id;
+
+    @Column(name = "from_account")
+    private int fromAccount;
+
+    @Column(name = "to_account")
+    private int toAccount;
+
+    @Column(name = "amount")
+    private double amount;
+
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date transactionDate;
+
+    public TransactionRecord() {}
+
+    public TransactionRecord(int fromAccount, int toAccount, double amount, Date date) {
+        this.fromAccount = fromAccount;
+        this.toAccount = toAccount;
+        this.amount = amount;
+        this.transactionDate = date;
+    }
+
+    // Getters and setters
+    public int getId() { return id; }
+    public int getFromAccount() { return fromAccount; }
+    public int getToAccount() { return toAccount; }
+    public double getAmount() { return amount; }
+    public Date getTransactionDate() { return transactionDate; }
+}
+
+
+/* ===========================================================
+   File 3: AccountDAO.java  (Data Access Object)
+   =========================================================== */
+import org.hibernate.Session;
+import org.hibernate.SessionFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public class AccountDAO {
+
+    @Autowired
+    private SessionFactory sessionFactory;
+
+    private Session getSession() {
+        return sessionFactory.getCurrentSession();
+    }
+
+    public Account getAccount(int id) {
+        return getSession().get(Account.class, id);
+    }
+
+    public void updateAccount(Account account) {
+        getSession().update(account);
+    }
+
+    public void saveTransaction(TransactionRecord tx) {
+        getSession().save(tx);
+    }
+}
+
+
+/* ===========================================================
+   File 4: BankingService.java  (Service Layer)
+   =========================================================== */
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.util.Date;
+
+@Service
+public class BankingService {
+
+    @Autowired
+    private AccountDAO accountDAO;
+
+    @Transactional
+    public void transferMoney(int fromId, int toId, double amount) {
+        Account fromAcc = accountDAO.getAccount(fromId);
+        Account toAcc = accountDAO.getAccount(toId);
+
+        if (fromAcc == null || toAcc == null)
+            throw new RuntimeException("Invalid account details!");
+
+        if (fromAcc.getBalance() < amount)
+            throw new RuntimeException("Insufficient balance in " + fromAcc.getAccountHolder());
+
+        // Deduct from sender
+        fromAcc.setBalance(fromAcc.getBalance() - amount);
+        accountDAO.updateAccount(fromAcc);
+
+        // Add to receiver
+        toAcc.setBalance(toAcc.getBalance() + amount);
+        accountDAO.updateAccount(toAcc);
+
+        // Record transaction
+        TransactionRecord tx = new TransactionRecord(fromId, toId, amount, new Date());
+        accountDAO.saveTransaction(tx);
+
+        System.out.println("✅ Transaction Successful: " + amount + " transferred from "
+                + fromAcc.getAccountHolder() + " to " + toAcc.getAccountHolder());
+    }
+}
+
+
+/* ===========================================================
+   File 5: AppConfig.java  (Spring Configuration)
+   =========================================================== */
+import org.springframework.context.annotation.*;
+import org.springframework.orm.hibernate5.HibernateTransactionManager;
+import org.springframework.orm.hibernate5.LocalSessionFactoryBean;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
+
+import javax.sql.DataSource;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import java.util.Properties;
+
+@Configuration
+@ComponentScan(basePackages = "your.package.name") // replace with your package
+@EnableTransactionManagement
+public class AppConfig {
+
+    @Bean
+    public DataSource dataSource() {
+        DriverManagerDataSource ds = new DriverManagerDataSource();
+        ds.setDriverClassName("com.mysql.cj.jdbc.Driver");
+        ds.setUrl("jdbc:mysql://localhost:3306/banking_system");
+        ds.setUsername("root");
+        ds.setPassword("your_password");
+        return ds;
+    }
+
+    @Bean
+    public LocalSessionFactoryBean sessionFactory() {
+        LocalSessionFactoryBean factory = new LocalSessionFactoryBean();
+        factory.setDataSource(dataSource());
+        factory.setPackagesToScan("your.package.name"); // replace with your package name
+
+        Properties props = new Properties();
+        props.put("hibernate.dialect", "org.hibernate.dialect.MySQL8Dialect");
+        props.put("hibernate.hbm2ddl.auto", "update");
+        props.put("hibernate.show_sql", "true");
+
+        factory.setHibernateProperties(props);
+        return factory;
+    }
+
+    @Bean
+    public HibernateTransactionManager transactionManager() {
+        HibernateTransactionManager txManager = new HibernateTransactionManager();
+        txManager.setSessionFactory(sessionFactory().getObject());
+        return txManager;
+    }
+}
+
+
+/* ===========================================================
+   File 6: MainApp.java  (Test Application)
+   =========================================================== */
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+
+public class MainApp {
+    public static void main(String[] args) {
+        AnnotationConfigApplicationContext context =
+                new AnnotationConfigApplicationContext(AppConfig.class);
+
+        BankingService service = context.getBean(BankingService.class);
+
+        try {
+            service.transferMoney(1, 2, 5000); // from ID 1 → to ID 2
+        } catch (Exception e) {
+            System.out.println("❌ Transaction failed: " + e.getMessage());
+        }
+
+        context.close();
+    }
+}
+
+
+/* ===========================================================
+   File 7: MySQL Setup (SQL Script)
+   =========================================================== */
+-- Run this before executing Java app
+CREATE DATABASE banking_system;
+USE banking_system;
+
+CREATE TABLE account (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    account_holder VARCHAR(50),
+    balance DOUBLE
+);
+
+CREATE TABLE transaction_record (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    from_account INT,
+    to_account INT,
+    amount DOUBLE,
+    transactionDate DATETIME
+);
+
+INSERT INTO account (account_holder, balance) VALUES
+('Alice', 10000),
+('Bob', 5000);
